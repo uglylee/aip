@@ -11,7 +11,7 @@ class Post {
   bool isLiked;
   Post({required this.id, required this.content, required this.createdAt, this.author, this.images=const [], this.videos=const [], this.thumbnails=const [], this.likesId=const [], this.likes=0, this.retweets=0, this.viewCount=0, this.replyCount=0, this.isLiked=false});
   factory Post.fromJson(Map<String, dynamic> j) => Post(
-    id: j['_id'] ?? '',
+    id: j['id'] ?? j['_id'] ?? '',
     content: j['content'] ?? '',
     createdAt: j['createdAt'] ?? '',
     author: j['author'] != null ? User.fromJson(j['author']) : null,

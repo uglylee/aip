@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,6 +34,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   bool enableThinking = true;
   String inputText = '';
   bool _settingsLoaded = false;
+  Timer? _streamFlushTimer;
+  bool _streamDirty = false;
 
   @override
   void initState() {
@@ -41,6 +44,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
     msgCtrl.addListener(() {
       if (msgCtrl.text != inputText) setState(() => inputText = msgCtrl.text);
     });
+  }
+
+  @override
+  void dispose() {
+    _streamFlushTimer?.cancel();
+    msgCtrl.dispose();
+    scrollCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -125,24 +136,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
     try {
       final stream = ApiService.chatStream(messages: messages, apiBase: provider.apiBase, apiKey: provider.apiKey, model: selectedModel, enableThinking: enableThinking);
       await for (final chunk in stream) {
-        if (chunk.startsWith('§REASONING§')) { setState(() => streamingThinking += chunk.substring(11)); }
+        if (chunk.startsWith('§REASONING§')) { streamingThinking += chunk.substring(11); }
         else {
           final trimmed = chunk.replaceAll(RegExp(r'\n{2,}'), '\n').trim();
           if (trimmed.isEmpty) continue;
-          if (!thinkingDone) setState(() => thinkingDone = true);
-          setState(() => streamingText += chunk);
+          if (!thinkingDone) thinkingDone = true;
+          streamingText += chunk;
         }
-        _scrollToBottom();
+        _streamDirty = true;
+        _scheduleStreamFlush();
       }
+      _streamFlushTimer?.cancel();
+      if (_streamDirty) _flushStream();
       setState(() { chatHistory.add({'role': 'assistant', 'content': streamingText, 'thinking': streamingThinking}); streamingText = ''; streamingThinking = ''; thinkingDone = false; isStreaming = false; });
       _saveChatHistory();
+      _scrollToBottom();
     } catch (e) {
+      _streamFlushTimer?.cancel();
       setState(() { chatHistory.add({'role': 'assistant', 'content': '错误: $e'}); isStreaming = false; streamingText = ''; streamingThinking = ''; thinkingDone = false; });
       _saveChatHistory();
     }
   }
 
   void _clearChat() { setState(() { chatHistory.clear(); streamingText = ''; streamingThinking = ''; }); _saveChatHistory(); }
+
+  void _scheduleStreamFlush() {
+    if (_streamFlushTimer?.isActive ?? false) return;
+    _streamFlushTimer = Timer(const Duration(milliseconds: 50), _flushStream);
+  }
+
+  void _flushStream() {
+    if (!_streamDirty) return;
+    _streamDirty = false;
+    if (mounted) setState(() {});
+    _scrollToBottom();
+  }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -200,7 +228,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             if (msg['content'] != null && (msg['content'] as String).trim().isNotEmpty)
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: isUser ? const Color(0xFF1DA1F2) : Colors.grey[100], borderRadius: BorderRadius.circular(16)),
+                                decoration: isUser ? BoxDecoration(color: const Color(0xFF1DA1F2), borderRadius: BorderRadius.circular(16)) : null,
                                 child: Text((msg['content'] as String).replaceAll(RegExp(r'\n{3,}'), '\n\n').trim(), style: TextStyle(color: isUser ? Colors.white : Colors.black)),
                               ),
                           ],
@@ -325,7 +353,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (showThinking) _ThinkingBox(thinking: streamingThinking, isStreaming: !thinkingDone),
-        if (hasText) Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)), child: Text(streamingText.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim())),
+        if (hasText) Padding(padding: const EdgeInsets.all(12), child: Text(streamingText)),
       ]),
     ));
   }
@@ -341,6 +369,11 @@ class _ThinkingBox extends StatefulWidget {
 class _ThinkingBoxState extends State<_ThinkingBox> {
   late bool _expanded;
   @override void initState() { super.initState(); _expanded = widget.isStreaming; }
+  @override
+  void didUpdateWidget(covariant _ThinkingBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isStreaming && !widget.isStreaming) _expanded = false;
+  }
   @override
   Widget build(BuildContext context) {
     return Container(

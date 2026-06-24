@@ -82,7 +82,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         ],
                       ]),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => ChatScreen(userId: user?['_id'] ?? '', userName: user?['username'] ?? ''),
+                        builder: (_) => ChatScreen(userId: user?['id'] ?? user?['_id'] ?? '', userName: user?['username'] ?? ''),
                       )).then((_) => _load()),
                     );
                   },

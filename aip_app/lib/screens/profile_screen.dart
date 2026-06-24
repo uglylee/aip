@@ -6,6 +6,7 @@ import '../widgets/post_card.dart';
 import '../screens/post_detail_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? userId;
@@ -56,6 +57,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text(user?.username ?? ''),
         actions: isMe ? [
           IconButton(icon: const Icon(Icons.settings), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SettingsScreen())).then((_) => _load())),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('退出登录'),
+                  content: const Text('确定要退出登录吗？'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                    TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确定', style: TextStyle(color: Colors.red))),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await ApiService.clearToken();
+                if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+              }
+            },
+          ),
         ] : [
           IconButton(icon: const Icon(Icons.email), onPressed: () {
             if (user != null) Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(userId: user!.id, userName: user!.username)));
@@ -135,6 +156,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         }
                       },
                     )),
+                    if (isMe) ...[
+                      const SizedBox(height: 24),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('退出登录'),
+                                  content: const Text('确定要退出登录吗？'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                                    TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确定', style: TextStyle(color: Colors.red))),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await ApiService.clearToken();
+                                if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                              }
+                            },
+                            icon: const Icon(Icons.logout, color: Colors.red),
+                            label: const Text('退出登录', style: TextStyle(color: Colors.red)),
+                            style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ],
                 ),
     );

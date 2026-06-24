@@ -6,11 +6,11 @@ aip_app/build/
 aip_app/.packages
 aip_app/pubspec.lock
 
-# Node.js
-server/node_modules/
-server/server_output.log
-server/server_error.log
-server/uploads/
+# Go
+server-go/server-go.exe
+server-go/server.log
+server-go/error.log
+server-go/uploads/
 
 # IDE
 .idea/
@@ -27,4 +27,5 @@ Thumbs.db
 stream_result.txt
 device_log.txt
 key.txt
-server/key.config.txt
+key.config.txt
+.env
