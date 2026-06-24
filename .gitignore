@@ -1,0 +1,30 @@
+# Flutter
+aip_app/.dart_tool/
+aip_app/.flutter-plugins
+aip_app/.flutter-plugins-dependencies
+aip_app/build/
+aip_app/.packages
+aip_app/pubspec.lock
+
+# Node.js
+server/node_modules/
+server/server_output.log
+server/server_error.log
+server/uploads/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.apk
+*.ipa
+stream_result.txt
+device_log.txt
+key.txt
+server/key.config.txt
