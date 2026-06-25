@@ -33,3 +33,19 @@ key.config.txt
 .env
 test_*.ps1
 test_*.py
+auto_post.js
+random_post.js
+seed_data.*
+seed_text.*
+
+# Logs
+*.log
+
+# Internal
+.mimocode/
+
+# Screenshots
+screen.png
+
+# Windows binaries
+*.exe
