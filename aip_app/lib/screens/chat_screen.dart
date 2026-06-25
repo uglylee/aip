@@ -17,14 +17,24 @@ class _ChatScreenState extends State<ChatScreen> {
   String myId = '';
   StreamSubscription? _messageSub;
   Timer? _pollTimer;
+  int _prevMsgCount = 0;
+  bool _wasAtBottom = true;
 
   @override
   void initState() {
     super.initState();
     msgCtrl.addListener(() => setState(() {}));
+    scrollCtrl.addListener(_onScroll);
     _load();
     _listenMessages();
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _load());
+  }
+
+  void _onScroll() {
+    if (!scrollCtrl.hasClients) return;
+    final max = scrollCtrl.position.maxScrollExtent;
+    final current = scrollCtrl.offset;
+    _wasAtBottom = (max - current) < 80;
   }
 
   @override
@@ -48,8 +58,12 @@ class _ChatScreenState extends State<ChatScreen> {
       myId = me?['id'] ?? '';
       final result = await ApiService.getMessages(widget.userId);
       if (mounted) {
+        final hasNew = result.length > _prevMsgCount;
+        _prevMsgCount = result.length;
         setState(() => messages = result);
-        _scrollToBottom();
+        if (hasNew && _wasAtBottom) {
+          _scrollToBottom();
+        }
       }
     } catch (_) {}
   }

@@ -60,9 +60,7 @@ class PostCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       const Icon(Icons.verified, size: 16, color: Color(0xFF1DA1F2)),
                       const SizedBox(width: 4),
-                      Flexible(
-                        child: Text('@${author?.handle ?? ''} · ${_formatTime(post.createdAt)}', style: const TextStyle(color: Colors.grey, fontSize: 12), overflow: TextOverflow.ellipsis),
-                      ),
+                      Text('· ${_formatTime(post.createdAt)}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     ]),
                   ]),
                 ),

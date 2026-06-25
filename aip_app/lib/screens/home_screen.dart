@@ -25,6 +25,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Post> posts = [];
   bool loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 1;
   int _currentTab = 0;
   User? currentUser;
   int _unreadCount = 0;
@@ -33,11 +36,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription? _messageSub;
   Timer? _unreadPollTimer;
   AppLifecycleState? _lastLifecycleState;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _scrollController.addListener(_onScroll);
     _loadData();
     _initSocket();
     _listenNotifications();
@@ -98,10 +103,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _scrollController.dispose();
     _notificationSub?.cancel();
     _messageSub?.cancel();
     _unreadPollTimer?.cancel();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final feed = await ApiService.getFeed(page: _page + 1);
+      if (feed.isEmpty) {
+        _hasMore = false;
+      } else {
+        _page++;
+        final newPosts = feed.map((e) => Post.fromJson(e)).toList();
+        if (currentUser != null) {
+          for (var p in newPosts) {
+            p.isLiked = p.likesId.contains(currentUser!.id);
+          }
+        }
+        setState(() => posts.addAll(newPosts));
+      }
+    } catch (_) {}
+    setState(() => _loadingMore = false);
   }
 
   void _initSocket() async {
@@ -144,8 +177,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _loadData() async {
     try {
+      _page = 1;
+      _hasMore = true;
       final meFuture = ApiService.getMe();
-      final feedFuture = ApiService.getFeed();
+      final feedFuture = ApiService.getFeed(page: 1);
       final results = await Future.wait([meFuture, feedFuture]);
       final meResult = results[0] as Map<String, dynamic>?;
       currentUser = meResult != null ? User.fromJson(meResult) : null;
@@ -266,9 +301,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               : RefreshIndicator(
                   onRefresh: _loadData,
                   child: ListView.separated(
-                    itemCount: posts.length,
+                    controller: _scrollController,
+                    itemCount: posts.length + (_hasMore ? 1 : 0),
                     separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.5, color: Color(0xFFE1E8ED)),
                     itemBuilder: (ctx, i) {
+                      if (i == posts.length) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        );
+                      }
                       final post = posts[i];
                       return PostCard(
                         post: post,
