@@ -156,7 +156,18 @@ flutter build apk --debug
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-### 5. 一键部署 (推荐)
+### 5. 构建 iOS（需 macOS）
+```bash
+cd aip_app
+./../build_ios.sh
+```
+或手动执行：
+```bash
+flutter clean && flutter pub get && flutter build ios --release
+/Users/zhaoli/development/flutter/bin/cache/artifacts/ios-deploy/ios-deploy --bundle build/ios/iphoneos/Runner.app --id <设备UDID>
+```
+
+### 6. 一键部署 (Windows)
 ```powershell
 .\deploy.ps1
 ```
@@ -197,3 +208,41 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 - Go 1.22+
 - Docker & Docker Compose
 - Android SDK (API 34+)
+- macOS + Xcode (iOS 构建)
+- ios-deploy（Flutter SDK 自带）
+
+## iOS 构建安装
+
+### 前置条件
+1. Mac 安装 Xcode 和 Flutter SDK
+2. iPhone 开启**开发者模式**：设置 → 隐私与安全性 → 开发者模式
+3. 用数据线连接 iPhone，点击**信任此电脑**
+
+### 快速安装
+```bash
+# 从 Windows 推送代码后，在 Mac 上执行：
+cd aip_app
+./../build_ios.sh
+```
+
+### 手动安装
+```bash
+cd aip_app
+flutter clean
+flutter pub get
+flutter build ios --release
+/Users/zhaoli/development/flutter/bin/cache/artifacts/ios-deploy/ios-deploy \
+  --bundle build/ios/iphoneos/Runner.app \
+  --id <设备UDID>
+```
+
+查看设备 UDID：
+```bash
+xcrun devicectl list devices
+```
+
+### 注意事项
+- 项目必须在 Mac 本地磁盘，**不要放在 Windows 共享目录**（会导致构建死锁）
+- 必须用 `--release` 模式，debug 模式在 iOS 18.7.7 上会 VSyncClient 崩溃
+- 用 `ios-deploy` 而非 `devicectl` 安装，避免 Xcode 隧道连接问题
+- 免费 Apple ID 签名有效期 **7 天**，到期需重新安装
