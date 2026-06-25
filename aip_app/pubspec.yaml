@@ -1,7 +1,7 @@
 name: aip_app
 description: "AIT - AI Chat Application"
 publish_to: 'none'
-version: 1.0.31+32
+version: 1.0.32+33
 
 environment:
   sdk: ^3.12.2
@@ -27,7 +27,7 @@ dependencies:
   video_player: ^2.9.0
   permission_handler: ^11.0.0
   webview_flutter: ^4.0.0
-  flutter_markdown: ^0.7.0
+  flutter_markdown_plus: ^1.0.7
 
 dev_dependencies:
   flutter_test:

@@ -95,7 +95,7 @@ func extractThumbnail(videoPath, thumbPath string) error {
 	}
 }
 
-var appVersion = "1.0.31"
+var appVersion = "1.0.32"
 var appBuildTime = ""
 
 func CheckUpdate(c *fiber.Ctx) error {

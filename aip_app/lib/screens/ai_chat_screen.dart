@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../services/api_service.dart';
 import '../models/provider_model.dart';
 import '../models/role.dart';
@@ -137,8 +138,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
       await for (final chunk in stream) {
         if (chunk.startsWith('§REASONING§')) { streamingThinking += chunk.substring(11); }
         else {
-          final trimmed = chunk.replaceAll(RegExp(r'\n{2,}'), '\n').trim();
-          if (trimmed.isEmpty) continue;
           if (!thinkingDone) thinkingDone = true;
           streamingText += chunk;
         }
@@ -228,7 +227,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: isUser ? BoxDecoration(color: const Color(0xFF1DA1F2), borderRadius: BorderRadius.circular(16)) : null,
-                                child: Text((msg['content'] as String).replaceAll(RegExp(r'\n{3,}'), '\n\n').trim(), style: TextStyle(color: isUser ? Colors.white : Colors.black)),
+                                child: isUser
+                                    ? Text((msg['content'] as String).replaceAll(RegExp(r'\n{3,}'), '\n\n').trim(), style: const TextStyle(color: Colors.white, fontSize: 15))
+                                    : MarkdownBody(
+                                        data: msg['content'] as String,
+                                        selectable: true,
+                                        styleSheet: MarkdownStyleSheet(
+                                          p: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.6),
+                                          h1: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.6),
+                                          h2: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.5),
+                                          h3: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, height: 1.5),
+                                          strong: const TextStyle(fontWeight: FontWeight.bold),
+                                          blockquote: TextStyle(color: Colors.grey[600], fontSize: 14),
+                                          code: TextStyle(backgroundColor: Colors.grey[200], fontFamily: 'monospace', fontSize: 13),
+                                          codeblockDecoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
+                                          listBullet: const TextStyle(fontSize: 14),
+                                        ),
+                                      ),
                               ),
                           ],
                         ),
@@ -352,7 +367,24 @@ class _AiChatScreenState extends State<AiChatScreen> {
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (showThinking) _ThinkingBox(thinking: streamingThinking, isStreaming: !thinkingDone),
-        if (hasText) Padding(padding: const EdgeInsets.all(12), child: Text(streamingText)),
+        if (hasText) Padding(
+          padding: const EdgeInsets.all(12),
+          child: MarkdownBody(
+            data: streamingText,
+            selectable: true,
+            styleSheet: MarkdownStyleSheet(
+              p: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.6),
+              h1: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.6),
+              h2: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, height: 1.5),
+              h3: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, height: 1.5),
+              strong: const TextStyle(fontWeight: FontWeight.bold),
+              blockquote: TextStyle(color: Colors.grey[600], fontSize: 14),
+              code: TextStyle(backgroundColor: Colors.grey[200], fontFamily: 'monospace', fontSize: 13),
+              codeblockDecoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(8)),
+              listBullet: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ),
       ]),
     ));
   }
@@ -394,7 +426,14 @@ class _ThinkingBoxState extends State<_ThinkingBox> {
             ]),
           ),
         ),
-        if (_expanded) ...[const Divider(height: 1), Padding(padding: const EdgeInsets.all(12), child: Text(widget.thinking, style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.5)))],
+        if (_expanded) ...[const Divider(height: 1), Padding(padding: const EdgeInsets.all(12), child: MarkdownBody(
+          data: widget.thinking,
+          selectable: true,
+          styleSheet: MarkdownStyleSheet(
+            p: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.5),
+            code: TextStyle(backgroundColor: Colors.grey[200], fontFamily: 'monospace', fontSize: 12),
+          ),
+        ))],
       ]),
     );
   }
