@@ -1,5 +1,5 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'services/api_service.dart';
 import 'services/socket_service.dart';
 import 'services/notification_service.dart';
@@ -9,11 +9,13 @@ import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.init();
+  if (!Platform.isIOS) {
+    await NotificationService.init();
+  }
   await ApiService.loadBaseUrl();
   await ApiService.loadToken();
   SocketService.startConnectivityMonitor();
-  if (ApiService.token != null) {
+  if (ApiService.token != null && !Platform.isIOS) {
     ForegroundServiceHelper.start();
   }
   runApp(const XCloneApp());
