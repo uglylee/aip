@@ -1,7 +1,7 @@
 name: aip_app
 description: "AIT - AI Chat Application"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.28+29
 
 environment:
   sdk: ^3.12.2
@@ -13,7 +13,15 @@ dependencies:
   http: ^1.2.0
   shared_preferences: ^2.3.0
   cached_network_image: ^3.4.0
-  socket_io_client: ^3.0.0
+  web_socket_channel: ^2.4.0
+  connectivity_plus: ^6.0.0
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.2.0
+  flutter_local_notifications: ^17.0.0
+  open_file: ^3.3.0
+  dio: ^5.4.0
+  path_provider: ^2.1.0
+  flutter_foreground_task: ^8.0.0
   provider: ^6.1.0
   image_picker: ^1.1.0
   video_player: ^2.9.0

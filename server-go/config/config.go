@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 
@@ -10,6 +11,7 @@ import (
 type Config struct {
 	Port           int
 	MongoURI       string
+	DBName         string
 	RedisAddr      string
 	RedisPassword  string
 	RedisDB        int
@@ -32,16 +34,21 @@ func Load() {
 
 	C = Config{
 		Port:           port,
-		MongoURI:       getEnv("MONGO_URI", "mongodb://127.0.0.1:27018/xclone"),
+		MongoURI:       getEnv("MONGO_URI", "mongodb://127.0.0.1:27018/aip"),
+		DBName:         getEnv("DB_NAME", "aip"),
 		RedisAddr:      getEnv("REDIS_ADDR", "127.0.0.1:6380"),
 		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
 		RedisDB:        redisDB,
-		JWTSecret:      getEnv("JWT_SECRET", "xclone_secret_key_2024"),
+		JWTSecret:      getEnv("JWT_SECRET", ""),
 		JWTExpiryHours: 30 * 24,
 		DefaultAIBase:  getEnv("DEFAULT_AI_BASE", "https://apihub.agnes-ai.com/v1/chat/completions"),
 		DefaultAIModel: getEnv("DEFAULT_AI_MODEL", "agnes-2.0-flash"),
 		UploadDir:      getEnv("UPLOAD_DIR", "./uploads"),
 		MaxUploadSize:  maxUpload,
+	}
+
+	if C.JWTSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
 }
 

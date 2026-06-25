@@ -20,7 +20,7 @@ func SendFriendRequest(c *fiber.Ctx) error {
 
 	toID, err := bson.ObjectIDFromHex(c.Params("toUserId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效用户ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -79,7 +79,7 @@ func GetFriendStatus(c *fiber.Ctx) error {
 
 	targetID, err := bson.ObjectIDFromHex(c.Params("userId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效用户ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -183,16 +183,16 @@ func AcceptFriend(c *fiber.Ctx) error {
 
 	requestID, err := bson.ObjectIDFromHex(c.Params("requestId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
 	var req models.FriendRequest
 	if err := services.FriendRequests.FindOne(ctx, bson.M{"_id": requestID}).Decode(&req); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "请求不存在"})
 	}
 	if req.To != viewerID {
-		return c.Status(403).JSON(fiber.Map{"error": "Not authorized"})
+		return c.Status(403).JSON(fiber.Map{"error": "无权操作"})
 	}
 
 	services.FriendRequests.UpdateOne(ctx, bson.M{"_id": requestID}, bson.M{"$set": bson.M{"status": "accepted"}})
@@ -205,16 +205,16 @@ func DeclineFriend(c *fiber.Ctx) error {
 
 	requestID, err := bson.ObjectIDFromHex(c.Params("requestId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
 	var req models.FriendRequest
 	if err := services.FriendRequests.FindOne(ctx, bson.M{"_id": requestID}).Decode(&req); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "请求不存在"})
 	}
 	if req.To != viewerID {
-		return c.Status(403).JSON(fiber.Map{"error": "Not authorized"})
+		return c.Status(403).JSON(fiber.Map{"error": "无权操作"})
 	}
 
 	services.FriendRequests.UpdateOne(ctx, bson.M{"_id": requestID}, bson.M{"$set": bson.M{"status": "declined"}})
@@ -227,7 +227,7 @@ func RemoveFriend(c *fiber.Ctx) error {
 
 	targetID, err := bson.ObjectIDFromHex(c.Params("userId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效用户ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 

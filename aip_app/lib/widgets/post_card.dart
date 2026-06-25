@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../models/post.dart';
 import '../services/api_service.dart';
+import 'user_avatar.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
@@ -46,18 +48,21 @@ class PostCard extends StatelessWidget {
               children: [
                 GestureDetector(
                   onTap: onAvatarTap,
-                  child: CircleAvatar(radius: 20, backgroundColor: Colors.blue[50], child: Text((author?.username ?? '?')[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold))),
+                  child: UserAvatar(avatarUrl: author?.avatar, username: author?.username ?? '?', radius: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Text(author?.username ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Flexible(
+                        child: Text(author?.username ?? '', style: const TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                      ),
                       const SizedBox(width: 4),
                       const Icon(Icons.verified, size: 16, color: Color(0xFF1DA1F2)),
                       const SizedBox(width: 4),
-                      Text('@${author?.handle ?? ''}', style: const TextStyle(color: Colors.grey)),
-                      Text(' · ${_formatTime(post.createdAt)}', style: const TextStyle(color: Colors.grey)),
+                      Flexible(
+                        child: Text('@${author?.handle ?? ''} · ${_formatTime(post.createdAt)}', style: const TextStyle(color: Colors.grey, fontSize: 12), overflow: TextOverflow.ellipsis),
+                      ),
                     ]),
                   ]),
                 ),
@@ -116,15 +121,13 @@ class PostCard extends StatelessWidget {
       onTap: () => _showFullScreenImage(context, item.url),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          '${ApiService.baseUrl}${item.url}',
+        child: CachedNetworkImage(
+          imageUrl: '${ApiService.baseUrl}${item.url}',
           width: double.infinity,
           height: 200,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            height: 200, color: Colors.grey[200],
-            child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-          ),
+          placeholder: (_, __) => Container(height: 200, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+          errorWidget: (_, __, ___) => Container(height: 200, color: Colors.grey[200], child: const Center(child: Icon(Icons.broken_image, color: Colors.grey))),
         ),
       ),
     );
@@ -138,13 +141,11 @@ class PostCard extends StatelessWidget {
       onTap: () => _showFullScreenImage(context, item.url),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          '${ApiService.baseUrl}${item.url}',
+        child: CachedNetworkImage(
+          imageUrl: '${ApiService.baseUrl}${item.url}',
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            color: Colors.grey[200],
-            child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-          ),
+          placeholder: (_, __) => Container(color: Colors.grey[200], child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
+          errorWidget: (_, __, ___) => Container(color: Colors.grey[200], child: const Center(child: Icon(Icons.broken_image, color: Colors.grey))),
         ),
       ),
     );
@@ -157,7 +158,12 @@ class PostCard extends StatelessWidget {
         appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
         body: Center(
           child: InteractiveViewer(
-            child: Image.network('${ApiService.baseUrl}${url}', fit: BoxFit.contain),
+            child: CachedNetworkImage(
+              imageUrl: '${ApiService.baseUrl}${url}',
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+              errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+            ),
           ),
         ),
       ),
@@ -199,8 +205,12 @@ class _VideoThumbnail extends StatelessWidget {
           height: 200,
           child: Stack(fit: StackFit.expand, children: [
             if (thumbnail != null && thumbnail!.isNotEmpty)
-              Image.network('${ApiService.baseUrl}$thumbnail', fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.black87))
+              CachedNetworkImage(
+                imageUrl: '${ApiService.baseUrl}$thumbnail',
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(color: Colors.black87),
+                errorWidget: (_, __, ___) => Container(color: Colors.black87),
+              )
             else
               Container(color: Colors.black87),
             Center(child: Container(

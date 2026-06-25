@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/socket_service.dart';
 
 class GroupChatScreen extends StatefulWidget {
   final String groupId;
@@ -11,13 +13,34 @@ class GroupChatScreen extends StatefulWidget {
 class _GroupChatScreenState extends State<GroupChatScreen> {
   List<dynamic> messages = [];
   final msgCtrl = TextEditingController();
+  final scrollCtrl = ScrollController();
   String myId = '';
   List<dynamic> members = [];
+  StreamSubscription? _messageSub;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _listenMessages();
+    SocketService.joinGroup(widget.groupId);
+  }
+
+  @override
+  void dispose() {
+    _messageSub?.cancel();
+    SocketService.leaveGroup(widget.groupId);
+    msgCtrl.dispose();
+    scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _listenMessages() {
+    _messageSub = SocketService.on('group_message').listen((data) {
+      if (data['groupId'] == widget.groupId && mounted) {
+        _load();
+      }
+    });
   }
 
   void _load() async {
@@ -26,8 +49,23 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       myId = me?['id'] ?? '';
       final result = await ApiService.getGroupMessages(widget.groupId);
       final group = await ApiService.getGroup(widget.groupId);
-      if (mounted) setState(() { messages = result; members = group?['members'] ?? []; });
+      if (mounted) {
+        setState(() { messages = result; members = group?['members'] ?? []; });
+        _scrollToBottom();
+      }
     } catch (_) {}
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollCtrl.hasClients) {
+        scrollCtrl.animateTo(
+          scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   String _getSenderName(String senderId) {
@@ -47,6 +85,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       body: Column(children: [
         Expanded(
           child: ListView.builder(
+            controller: scrollCtrl,
             padding: const EdgeInsets.all(8),
             itemCount: messages.length,
             itemBuilder: (ctx, i) {

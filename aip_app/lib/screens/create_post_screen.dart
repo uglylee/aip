@@ -14,6 +14,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final List<File> _imageFiles = [];
   final List<File> _videoFiles = [];
   final ImagePicker _picker = ImagePicker();
+  static const int _maxChars = 280;
+
+  @override
+  void initState() {
+    super.initState();
+    textCtrl.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -51,7 +58,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     });
   }
 
-  bool get _canSubmit => (textCtrl.text.isNotEmpty || _imageFiles.isNotEmpty || _videoFiles.isNotEmpty) && !loading;
+  bool get _canSubmit => (textCtrl.text.isNotEmpty || _imageFiles.isNotEmpty || _videoFiles.isNotEmpty) && !loading && textCtrl.text.length <= _maxChars;
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
@@ -187,6 +194,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text('$totalMedia/9', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                const Spacer(),
+                if (textCtrl.text.isNotEmpty)
+                  Text(
+                    '${textCtrl.text.length}/$_maxChars',
+                    style: TextStyle(
+                      color: textCtrl.text.length > _maxChars ? Colors.red : Colors.grey,
+                      fontSize: 13,
+                    ),
+                  ),
               ],
             ),
           ],

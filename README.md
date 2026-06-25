@@ -22,6 +22,11 @@
 - **搜索系统**: 搜索用户/帖子 + DuckDuckGo 网页搜索
 - **个人资料**: 头像/用户名/简介，查看他人资料页
 
+### 应用功能
+- **应用内更新**: 检测新版本，下载 APK 并触发系统安装
+- **前台服务**: Android 前台通知保活
+- **推送通知**: 本地通知提醒
+
 ## 技术栈
 
 ### 前端 (Flutter)
@@ -30,7 +35,9 @@
 - **网络**: http 包 + SSE 流式
 - **视频播放**: webview_flutter
 - **图片选择**: image_picker
-- **实时通信**: socket_io_client
+- **实时通信**: web_socket_channel
+- **应用更新**: dio 下载 + open_file 安装
+- **通知**: flutter_local_notifications + MethodChannel 原生安装
 
 ### 后端 (Go)
 - **框架**: Fiber v2 (fasthttp) + net/http (SSE)
@@ -53,10 +60,15 @@ aip/
 │   ├── lib/
 │   │   ├── main.dart
 │   │   ├── models/                 # user, post, message, provider_model, role
-│   │   ├── services/api_service.dart
+│   │   ├── services/
+│   │   │   ├── api_service.dart        # HTTP 请求 + SSE
+│   │   │   ├── update_service.dart     # 应用内更新
+│   │   │   ├── socket_service.dart     # WebSocket 连接
+│   │   │   ├── foreground_service.dart # Android 前台服务
+│   │   │   └── notification_service.dart # 本地通知
 │   │   ├── screens/
 │   │   │   ├── home_screen.dart        # 首页 Feed + 搜索框
-│   │   │   ├── ai_chat_screen.dart     # AI 聊天（语音/文字/图片）
+│   │   │   ├── ai_chat_screen.dart     # AI 聊天
 │   │   │   ├── settings_screen.dart    # AI 供应商/模型/Thinking 设置
 │   │   │   ├── providers_screen.dart   # 供应商管理
 │   │   │   ├── roles_screen.dart       # 角色管理
@@ -69,37 +81,48 @@ aip/
 │   │   │   ├── friends_screen.dart     # 好友列表
 │   │   │   ├── group_list_screen.dart  # 群聊列表
 │   │   │   ├── group_chat_screen.dart  # 群聊聊天
+│   │   │   ├── login_screen.dart       # 登录
 │   │   │   └── notifications_screen.dart
-│   │   └── widgets/post_card.dart  # 帖子卡片
+│   │   └── widgets/
+│   │       ├── post_card.dart          # 帖子卡片
+│   │       └── user_avatar.dart        # 用户头像
 │   ├── android/
+│   │   └── app/src/main/
+│   │       ├── AndroidManifest.xml     # 权限声明
+│   │       ├── kotlin/.../MainActivity.kt  # MethodChannel 安装 APK
+│   │       └── res/xml/file_paths.xml  # FileProvider 路径
 │   └── pubspec.yaml
 │
 ├── server-go/                      # Go 后端
-│   ├── main.go                     # 入口
-│   ├── .env                        # 配置
+│   ├── main.go                     # 入口: Fiber 路由 + net/http 桥接
+│   ├── .env / .env.example         # 环境变量配置
 │   ├── Dockerfile
-│   ├── ffmpeg.exe                  # 视频缩略图工具
 │   ├── go.mod / go.sum
-│   ├── config/config.go            # 配置加载
-│   ├── handlers/                   # 10 个 handler
+│   ├── config/config.go            # 配置加载 (godotenv)
+│   ├── handlers/
 │   │   ├── auth.go                 # 注册/登录/me
-│   │   ├── ai.go                   # AI + 工具函数
+│   │   ├── ai.go                   # AI 工具函数
 │   │   ├── ai_http.go              # AI SSE (net/http Flusher)
-│   │   ├── posts.go                # 推文 CRUD
+│   │   ├── posts.go                # 推文 CRUD + 点赞/转发
 │   │   ├── messages.go             # 私信
 │   │   ├── groups.go               # 群聊
 │   │   ├── friends.go              # 好友请求
 │   │   ├── notifications.go        # 通知
-│   │   ├── search.go               # 搜索
-│   │   ├── upload.go               # 上传 + ffmpeg
+│   │   ├── search.go               # 搜索 + DuckDuckGo
+│   │   ├── upload.go               # 上传 + 版本检查
 │   │   └── users.go                # 用户/关注
 │   ├── models/                     # 6 个 MongoDB 文档模型
-│   ├── services/                   # DB + Redis 连接
+│   ├── services/
+│   │   ├── db.go                   # MongoDB 连接 + 索引
+│   │   └── redis.go                # Redis 连接
 │   ├── middleware/auth.go          # JWT 中间件
 │   ├── ws/socket.go                # WebSocket Hub
 │   └── uploads/                    # 上传文件
 │
+├── deploy.ps1                      # 一键部署脚本
 ├── docker-compose.yml
+├── seed_data.js                    # 测试数据生成
+├── AGENTS.md
 ├── CLAUDE.md
 └── README.md
 ```
@@ -112,19 +135,32 @@ cd aip
 docker-compose up -d
 ```
 
-### 2. 启动后端
+### 2. 配置环境变量
+```bash
+cd server-go
+cp .env.example .env
+# 编辑 .env 设置 JWT_SECRET 等
+```
+
+### 3. 启动后端
 ```bash
 cd server-go
 go run main.go
 ```
 
-### 3. 构建 Android
+### 4. 构建 Android
 ```bash
 cd aip_app
 flutter pub get
 flutter build apk --debug
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
+
+### 5. 一键部署 (推荐)
+```powershell
+.\deploy.ps1
+```
+自动完成: 版本递增 → Go 编译 → Flutter 构建 → APK 安装 → 服务器重启
 
 ## API 接口
 
@@ -152,10 +188,12 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 | `/api/upload` | POST | 文件上传 |
 | `/api/ai` | POST | AI 流式对话 |
 | `/api/ai/models` | GET | 模型列表 |
+| `/api/version` | GET | 版本检查 |
+| `/app` | GET | 下载页面 |
 
 ## 环境要求
 
-- Flutter 3.44+
+- Flutter 3.44+ / Dart 3.12+
 - Go 1.22+
 - Docker & Docker Compose
 - Android SDK (API 34+)

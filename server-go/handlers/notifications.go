@@ -28,25 +28,44 @@ func GetNotifications(c *fiber.Ctx) error {
 	var notifications []models.Notification
 	cursor.All(ctx, &notifications)
 
+	fromUserIDs := make([]bson.ObjectID, 0, len(notifications))
+	for _, n := range notifications {
+		fromUserIDs = append(fromUserIDs, n.FromUser)
+	}
+
+	userMap := make(map[string]*models.User)
+	if len(fromUserIDs) > 0 {
+		userCursor, _ := services.Users.Find(ctx, bson.M{"_id": bson.M{"$in": fromUserIDs}}, options.Find().SetProjection(bson.M{"password": 0}))
+		var users []models.User
+		userCursor.All(ctx, &users)
+		for i := range users {
+			userMap[users[i].ID.Hex()] = &users[i]
+		}
+	}
+
 	result := make([]fiber.Map, len(notifications))
 	for i, n := range notifications {
-		var fromUser models.User
-		services.Users.FindOne(ctx, bson.M{"_id": n.FromUser}).Decode(&fromUser)
+		fromUser := userMap[n.FromUser.Hex()]
+		var fromUserData fiber.Map
+		if fromUser != nil {
+			fromUserData = toUserBrief(fromUser)
+		}
 
 		var postData fiber.Map
 		if n.Post != nil {
 			var post models.Post
 			if err := services.Posts.FindOne(ctx, bson.M{"_id": n.Post}).Decode(&post); err == nil {
-				postData = fiber.Map{"content": post.Content}
+				postData = fiber.Map{"id": post.ID, "content": post.Content}
 			}
 		}
 
 		result[i] = fiber.Map{
 			"id":        n.ID,
 			"user":      n.User,
-			"fromUser":  toUserBrief(&fromUser),
+			"fromUser":  fromUserData,
 			"type":      n.Type,
 			"post":      postData,
+			"postId":    n.Post,
 			"read":      n.Read,
 			"createdAt": n.CreatedAt,
 		}
@@ -74,10 +93,11 @@ func MarkRead(c *fiber.Ctx) error {
 
 	notifID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid notification ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效通知ID"})
 	}
 
-	services.Notifications.UpdateOne(ctx, bson.M{"_id": notifID}, bson.M{"$set": bson.M{"read": true}})
+	viewerID := middleware.GetUserID(c)
+	services.Notifications.UpdateOne(ctx, bson.M{"_id": notifID, "user": viewerID}, bson.M{"$set": bson.M{"read": true}})
 	return c.JSON(fiber.Map{"success": true})
 }
 

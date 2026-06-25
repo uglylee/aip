@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/socket_service.dart';
+import '../widgets/user_avatar.dart';
 import 'chat_screen.dart';
 import 'friends_screen.dart';
 import 'group_list_screen.dart';
+import 'profile_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -12,14 +16,38 @@ class MessagesScreen extends StatefulWidget {
 class _MessagesScreenState extends State<MessagesScreen> {
   List<dynamic> conversations = [];
   bool loading = true;
+  StreamSubscription? _messageSub;
+  StreamSubscription? _groupMessageSub;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _listenMessages();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) _load();
+    });
   }
 
-  void _load() async {
+  @override
+  void dispose() {
+    _messageSub?.cancel();
+    _groupMessageSub?.cancel();
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _listenMessages() {
+    _messageSub = SocketService.on('message').listen((_) {
+      if (mounted) _load();
+    });
+    _groupMessageSub = SocketService.on('group_message').listen((_) {
+      if (mounted) _load();
+    });
+  }
+
+  Future<void> _load() async {
     try {
       final result = await ApiService.getConversations();
       if (mounted) setState(() { conversations = result; loading = false; });
@@ -58,34 +86,43 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   SizedBox(height: 16),
                   Text('暂无私信', style: TextStyle(color: Colors.grey, fontSize: 16)),
                 ]))
-              : ListView.separated(
-                  itemCount: conversations.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.5, color: Color(0xFFE1E8ED)),
-                  itemBuilder: (ctx, i) {
-                    final conv = conversations[i];
-                    final user = conv['user'];
-                    final lastMsg = conv['lastMessage'];
-                    final unread = conv['unread'] ?? 0;
-                    return ListTile(
-                      leading: CircleAvatar(child: Text((user?['username'] ?? '?')[0].toUpperCase())),
-                      title: Text(user?['username'] ?? '未知', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(lastMsg?['content'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-                      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text(_formatTime(lastMsg?['createdAt']), style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                        if (unread > 0) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: const BoxDecoration(color: Color(0xFFE53935), shape: BoxShape.circle),
-                            child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                          ),
-                        ],
-                      ]),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => ChatScreen(userId: user?['id'] ?? user?['_id'] ?? '', userName: user?['username'] ?? ''),
-                      )).then((_) => _load()),
-                    );
-                  },
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    itemCount: conversations.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.5, color: Color(0xFFE1E8ED)),
+                    itemBuilder: (ctx, i) {
+                      final conv = conversations[i];
+                      final user = conv['user'];
+                      final lastMsg = conv['lastMessage'];
+                      final unread = conv['unread'] ?? 0;
+                      return ListTile(
+                        leading: GestureDetector(
+                          onTap: () {
+                            final userId = user?['id'] ?? user?['_id'];
+                            if (userId != null) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: userId)));
+                          },
+                          child: UserAvatar(avatarUrl: user?['avatar'], username: user?['username'] ?? '?'),
+                        ),
+                        title: Text(user?['username'] ?? '未知', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(lastMsg?['content'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                          Text(_formatTime(lastMsg?['createdAt']), style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                          if (unread > 0) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: const BoxDecoration(color: Color(0xFFE53935), shape: BoxShape.circle),
+                              child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                            ),
+                          ],
+                        ]),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => ChatScreen(userId: user?['id'] ?? user?['_id'] ?? '', userName: user?['username'] ?? ''),
+                        )).then((_) => _load()),
+                      );
+                    },
+                  ),
                 ),
     );
   }

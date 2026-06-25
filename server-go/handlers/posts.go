@@ -26,7 +26,11 @@ func CreatePost(c *fiber.Ctx) error {
 		Thumbnails []string `json:"thumbnails"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求"})
+	}
+
+	if body.Content == "" && len(body.Images) == 0 && len(body.Videos) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "内容不能为空"})
 	}
 
 	viewerID := middleware.GetUserID(c)
@@ -94,12 +98,12 @@ func GetFeed(c *fiber.Ctx) error {
 		"retweetOf": nil,
 	}, opts)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(fiber.Map{"error": "获取失败"})
 	}
 
 	var posts []models.Post
 	if err := cursor.All(ctx, &posts); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(500).JSON(fiber.Map{"error": "获取失败"})
 	}
 
 	result := make([]fiber.Map, len(posts))
@@ -144,11 +148,17 @@ func GetUserPosts(c *fiber.Ctx) error {
 
 	authorID, err := bson.ObjectIDFromHex(c.Params("userId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效用户ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
-	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 20)
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
+		SetSkip(int64((page - 1) * limit)).
+		SetLimit(int64(limit))
 	cursor, err := services.Posts.Find(ctx, bson.M{
 		"author":    authorID,
 		"retweetOf": nil,
@@ -175,13 +185,13 @@ func GetPost(c *fiber.Ctx) error {
 
 	postID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid post ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
 	var post models.Post
 	if err := services.Posts.FindOneAndUpdate(ctx, bson.M{"_id": postID}, bson.M{"$inc": bson.M{"viewCount": 1}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&post); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Post not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "帖子不存在"})
 	}
 
 	cursor, err := services.Posts.Find(ctx, bson.M{"replyTo": postID}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
@@ -208,16 +218,20 @@ func DeletePost(c *fiber.Ctx) error {
 
 	postID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid post ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
 	var post models.Post
 	if err := services.Posts.FindOne(ctx, bson.M{"_id": postID}).Decode(&post); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Post not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "帖子不存在"})
 	}
 	if post.Author != viewerID {
-		return c.Status(403).JSON(fiber.Map{"error": "Not authorized"})
+		return c.Status(403).JSON(fiber.Map{"error": "无权删除此帖子"})
+	}
+
+	if post.ReplyTo != nil {
+		services.Posts.UpdateOne(ctx, bson.M{"_id": post.ReplyTo}, bson.M{"$inc": bson.M{"replyCount": -1}})
 	}
 
 	services.Posts.DeleteOne(ctx, bson.M{"_id": postID})
@@ -230,13 +244,13 @@ func LikePost(c *fiber.Ctx) error {
 
 	postID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid post ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
 	var post models.Post
 	if err := services.Posts.FindOne(ctx, bson.M{"_id": postID}).Decode(&post); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Post not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "帖子不存在"})
 	}
 
 	alreadyLiked := false
@@ -279,7 +293,7 @@ func UnlikePost(c *fiber.Ctx) error {
 
 	postID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid post ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -296,13 +310,13 @@ func RetweetPost(c *fiber.Ctx) error {
 
 	postID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid post ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
 	var post models.Post
 	if err := services.Posts.FindOne(ctx, bson.M{"_id": postID}).Decode(&post); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Post not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "帖子不存在"})
 	}
 
 	alreadyRetweeted := false
@@ -351,13 +365,81 @@ func RetweetPost(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"retweeted": true, "retweets": newCount})
 }
 
+func BookmarkPost(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	postID, err := bson.ObjectIDFromHex(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
+	}
+	viewerID := middleware.GetUserID(c)
+
+	services.Users.UpdateOne(ctx, bson.M{"_id": viewerID}, bson.M{"$addToSet": bson.M{"bookmarks": postID}})
+	return c.JSON(fiber.Map{"bookmarked": true})
+}
+
+func UnbookmarkPost(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	postID, err := bson.ObjectIDFromHex(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
+	}
+	viewerID := middleware.GetUserID(c)
+
+	services.Users.UpdateOne(ctx, bson.M{"_id": viewerID}, bson.M{"$pull": bson.M{"bookmarks": postID}})
+	return c.JSON(fiber.Map{"bookmarked": false})
+}
+
+func GetBookmarks(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	viewerID := middleware.GetUserID(c)
+
+	var viewer models.User
+	if err := services.Users.FindOne(ctx, bson.M{"_id": viewerID}).Decode(&viewer); err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "用户不存在"})
+	}
+
+	if len(viewer.Bookmarks) == 0 {
+		return c.JSON(fiber.Map{"posts": []interface{}{}})
+	}
+
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 20)
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "createdAt", Value: -1}}).
+		SetSkip(int64((page - 1) * limit)).
+		SetLimit(int64(limit))
+
+	cursor, err := services.Posts.Find(ctx, bson.M{"_id": bson.M{"$in": viewer.Bookmarks}}, opts)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "获取失败"})
+	}
+
+	var posts []models.Post
+	if err := cursor.All(ctx, &posts); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "获取失败"})
+	}
+
+	result := make([]fiber.Map, len(posts))
+	for i, p := range posts {
+		result[i] = toPostResponse(ctx, &p, viewerID)
+	}
+	return c.JSON(fiber.Map{"posts": result})
+}
+
 func UndoRetweet(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	postID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid post ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效帖子ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -370,14 +452,9 @@ func UndoRetweet(c *fiber.Ctx) error {
 }
 
 func toPostResponse(ctx context.Context, post *models.Post, viewerID bson.ObjectID) fiber.Map {
-	var author models.User
-	if err := services.Users.FindOne(ctx, bson.M{"_id": post.Author}).Decode(&author); err != nil {
-		author = models.User{ID: post.Author, Username: "unknown", Handle: "unknown"}
-	}
-
 	return fiber.Map{
 		"id":         post.ID,
-		"author":     toUserBrief(&author),
+		"author":     toUserBriefFromID(ctx, post.Author),
 		"content":    post.Content,
 		"images":     post.Images,
 		"videos":     post.Videos,
@@ -391,4 +468,12 @@ func toPostResponse(ctx context.Context, post *models.Post, viewerID bson.Object
 		"createdAt":  post.CreatedAt,
 		"updatedAt":  post.UpdatedAt,
 	}
+}
+
+func toUserBriefFromID(ctx context.Context, userID bson.ObjectID) fiber.Map {
+	var user models.User
+	if err := services.Users.FindOne(ctx, bson.M{"_id": userID}).Decode(&user); err != nil {
+		return fiber.Map{"id": userID, "username": "unknown", "handle": "unknown"}
+	}
+	return toUserBrief(&user)
 }

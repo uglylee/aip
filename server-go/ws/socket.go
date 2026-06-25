@@ -3,23 +3,35 @@ package ws
 import (
 	"encoding/json"
 	"log"
+	"net/http"
 	"sync"
+	"sync/atomic"
+
+	"aip-server/config"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/websocket/v2"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
 type Client struct {
-	Conn   *websocket.Conn
-	UserID string
-	Rooms  map[string]bool
+	Conn      *websocket.Conn
+	UserID    string
+	Rooms     map[string]bool
+	Send      chan []byte
+	closed    atomic.Bool
 }
 
 type Hub struct {
-	clients    map[*Client]bool
-	userConns  map[string][]*Client
-	roomConns  map[string][]*Client
-	mu         sync.RWMutex
+	clients   map[*Client]bool
+	userConns map[string][]*Client
+	roomConns map[string][]*Client
+	mu        sync.RWMutex
 }
 
 var H *Hub
@@ -42,7 +54,12 @@ func (h *Hub) Register(c *Client) {
 func (h *Hub) Unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if !h.clients[c] {
+		return
+	}
 	delete(h.clients, c)
+
 	if c.UserID != "" {
 		conns := h.userConns[c.UserID]
 		for i, conn := range conns {
@@ -54,6 +71,10 @@ func (h *Hub) Unregister(c *Client) {
 	}
 	for room := range c.Rooms {
 		h.removeFromRoom(c, room)
+	}
+
+	if c.closed.CompareAndSwap(false, true) {
+		close(c.Send)
 	}
 	c.Conn.Close()
 }
@@ -92,39 +113,125 @@ func (h *Hub) removeFromRoom(c *Client, room string) {
 func (h *Hub) EmitToUser(userID string, event string, data interface{}) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	msg, _ := json.Marshal(fiber.Map{"event": event, "data": data})
 	for _, c := range h.userConns[userID] {
-		c.Conn.WriteJSON(fiber.Map{"event": event, "data": data})
+		if !c.closed.Load() {
+			select {
+			case c.Send <- msg:
+			default:
+			}
+		}
 	}
 }
 
 func (h *Hub) EmitToRoom(room string, event string, data interface{}) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	msg, _ := json.Marshal(fiber.Map{"event": event, "data": data})
 	for _, c := range h.roomConns[room] {
-		c.Conn.WriteJSON(fiber.Map{"event": event, "data": data})
+		if !c.closed.Load() {
+			select {
+			case c.Send <- msg:
+			default:
+			}
+		}
 	}
 }
 
 func (h *Hub) EmitToAll(event string, data interface{}) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	msg, _ := json.Marshal(fiber.Map{"event": event, "data": data})
 	for c := range h.clients {
-		c.Conn.WriteJSON(fiber.Map{"event": event, "data": data})
+		if !c.closed.Load() {
+			select {
+			case c.Send <- msg:
+			default:
+			}
+		}
 	}
 }
 
-func HandleConnection(c *websocket.Conn) {
+type jwtClaims struct {
+	UserID string `json:"userId"`
+	jwt.RegisteredClaims
+}
+
+func HandleConnectionHTTP(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("WS panic recovered: %v", r)
+		}
+	}()
+
+	tokenStr := r.URL.Query().Get("token")
+	if tokenStr == "" {
+		http.Error(w, "missing token", 401)
+		return
+	}
+
+	claims := &jwtClaims{}
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
+		return []byte(config.C.JWTSecret), nil
+	})
+	if err != nil || !token.Valid {
+		log.Println("WS auth failed:", err)
+		http.Error(w, "invalid token", 401)
+		return
+	}
+
+	userID, _ := bson.ObjectIDFromHex(claims.UserID)
+	if userID.IsZero() {
+		log.Println("WS invalid userId:", claims.UserID)
+		http.Error(w, "invalid userId", 401)
+		return
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("WS upgrade error:", err)
+		return
+	}
+
 	client := &Client{
-		Conn:  c,
-		Rooms: make(map[string]bool),
+		Conn:   conn,
+		Rooms:  make(map[string]bool),
+		UserID: userID.Hex(),
+		Send:   make(chan []byte, 256),
 	}
 	H.Register(client)
-	defer H.Unregister(client)
+	H.JoinUser(client, userID.Hex())
 
-	log.Println("WS connected:", c.RemoteAddr())
+	log.Println("WS connected:", conn.RemoteAddr(), "user:", userID.Hex())
 
+	go writePump(client)
+	readPump(client)
+}
+
+func writePump(c *Client) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("writePump panic: %v", r)
+		}
+		H.Unregister(c)
+	}()
+	for msg := range c.Send {
+		if err := c.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			return
+		}
+	}
+}
+
+func readPump(c *Client) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("readPump panic: %v", r)
+		}
+		H.Unregister(c)
+	}()
+	c.Conn.SetReadLimit(65536)
 	for {
-		_, msg, err := c.ReadMessage()
+		_, msg, err := c.Conn.ReadMessage()
 		if err != nil {
 			break
 		}
@@ -138,25 +245,19 @@ func HandleConnection(c *websocket.Conn) {
 		}
 
 		switch event.Type {
-		case "join":
-			if data, ok := event.Data.(map[string]interface{}); ok {
-				if userID, ok := data["userId"].(string); ok {
-					H.JoinUser(client, userID)
-				}
-			}
 		case "join_group":
 			if data, ok := event.Data.(map[string]interface{}); ok {
 				if groupID, ok := data["groupId"].(string); ok {
-					H.JoinRoom(client, "group:"+groupID)
+					H.JoinRoom(c, "group:"+groupID)
 				}
 			}
 		case "leave_group":
 			if data, ok := event.Data.(map[string]interface{}); ok {
 				if groupID, ok := data["groupId"].(string); ok {
-					H.LeaveRoom(client, "group:"+groupID)
+					H.LeaveRoom(c, "group:"+groupID)
 				}
 			}
 		}
 	}
-	log.Println("WS disconnected:", c.RemoteAddr())
+	log.Println("WS disconnected:", c.Conn.RemoteAddr())
 }

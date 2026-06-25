@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../services/socket_service.dart';
+import '../services/notification_service.dart';
+import '../services/update_service.dart';
 import '../models/post.dart';
 import '../models/user.dart';
 import '../widgets/post_card.dart';
-import 'login_screen.dart';
 import 'post_detail_screen.dart';
 import 'search_screen.dart';
 import 'notifications_screen.dart';
@@ -17,23 +22,134 @@ class HomeScreen extends StatefulWidget {
   @override State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Post> posts = [];
   bool loading = true;
   int _currentTab = 0;
   User? currentUser;
+  int _unreadCount = 0;
+  int _unreadMsgCount = 0;
+  StreamSubscription? _notificationSub;
+  StreamSubscription? _messageSub;
+  Timer? _unreadPollTimer;
+  AppLifecycleState? _lastLifecycleState;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+    _initSocket();
+    _listenNotifications();
+    _listenMessages();
+    _unreadPollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) _loadUnreadCount();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) UpdateService.checkAndPrompt(context);
+    });
   }
 
-  void _loadData() async {
+  int _lastUnreadMsgCount = 0;
+  int _lastUnreadNotifCount = 0;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasBackground = _lastLifecycleState != null && _lastLifecycleState != AppLifecycleState.resumed;
+    _lastLifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      SocketService.connect();
+      if (wasBackground) _checkMissedMessages();
+      _loadUnreadCount();
+    }
+  }
+
+  void _checkMissedMessages() async {
     try {
-      final me = await ApiService.getMe();
-      currentUser = me != null ? User.fromJson(me) : null;
-      var feed = await ApiService.getFeed();
+      final results = await Future.wait([
+        ApiService.getUnreadMessageCount(),
+        ApiService.getUnreadCount(),
+      ]);
+      final newMsgCount = results[0] as int;
+      final newNotifCount = results[1] as int;
+
+      if (newMsgCount > _lastUnreadMsgCount) {
+        final diff = newMsgCount - _lastUnreadMsgCount;
+        NotificationService.showMessageNotification(
+          title: '新私信',
+          body: '你有 $diff 条未读消息',
+        );
+      }
+      if (newNotifCount > _lastUnreadNotifCount) {
+        final diff = newNotifCount - _lastUnreadNotifCount;
+        NotificationService.showGenericNotification(
+          title: '新通知',
+          body: '你有 $diff 条新通知',
+        );
+      }
+
+      _lastUnreadMsgCount = newMsgCount;
+      _lastUnreadNotifCount = newNotifCount;
+    } catch (_) {}
+  }
+
+  bool get _isInBackground => _lastLifecycleState != null && _lastLifecycleState != AppLifecycleState.resumed;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationSub?.cancel();
+    _messageSub?.cancel();
+    _unreadPollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _initSocket() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ws_debug', 'initState called, token=${ApiService.token != null}');
+    SocketService.connect();
+    await Future.delayed(const Duration(seconds: 3));
+    await prefs.setString('ws_debug2', 'connected=${SocketService.isConnected}');
+  }
+
+  void _listenMessages() {
+    _messageSub = SocketService.on('message').listen((data) {
+      if (mounted) _loadUnreadCount();
+      if (_isInBackground) {
+        final sender = data['senderName'] ?? '新消息';
+        final content = data['content'] ?? '';
+        NotificationService.showMessageNotification(title: sender, body: content);
+      }
+    });
+  }
+
+  void _listenNotifications() {
+    _notificationSub = SocketService.on('notification').listen((data) {
+      if (mounted) _loadUnreadCount();
+      if (_isInBackground) {
+        final type = data['type'] ?? '';
+        String text;
+        switch (type) {
+          case 'like': text = '赞了你的帖子'; break;
+          case 'retweet': text = '转发了你的帖子'; break;
+          case 'follow': text = '关注了你'; break;
+          case 'reply': text = '回复了你的帖子'; break;
+          case 'friend_request': text = '发送了好友请求'; break;
+          default: text = '与你互动';
+        }
+        NotificationService.showGenericNotification(title: '新通知', body: text);
+      }
+    });
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final meFuture = ApiService.getMe();
+      final feedFuture = ApiService.getFeed();
+      final results = await Future.wait([meFuture, feedFuture]);
+      final meResult = results[0] as Map<String, dynamic>?;
+      currentUser = meResult != null ? User.fromJson(meResult) : null;
+      var feed = (results[1] as List?)?.cast<Map<String, dynamic>>() ?? [];
       if (feed.isEmpty) feed = await ApiService.getExplore();
       if (mounted) {
         setState(() {
@@ -46,29 +162,62 @@ class _HomeScreenState extends State<HomeScreen> {
           loading = false;
         });
       }
+      _loadUnreadCount();
     } catch (e) {
       if (mounted) setState(() { loading = false; });
     }
   }
 
+  void _loadUnreadCount() async {
+    try {
+      final results = await Future.wait([
+        ApiService.getUnreadCount(),
+        ApiService.getUnreadMessageCount(),
+      ]);
+      if (mounted) setState(() {
+        _unreadCount = results[0] as int;
+        _unreadMsgCount = results[1] as int;
+      });
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    final screens = [
-      _buildHomeTab(),
-      const AiChatScreen(),
-      const NotificationsScreen(),
-      const MessagesScreen(),
-    ];
     return Scaffold(
-      body: screens[_currentTab],
+      body: IndexedStack(
+        index: _currentTab,
+        children: [
+          _buildHomeTab(),
+          const AiChatScreen(),
+          const NotificationsScreen(),
+          const MessagesScreen(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentTab,
-        onDestinationSelected: (i) => setState(() => _currentTab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: '首页'),
-          NavigationDestination(icon: Icon(Icons.auto_awesome), label: 'AI'),
-          NavigationDestination(icon: Icon(Icons.notifications_outlined), label: '通知'),
-          NavigationDestination(icon: Icon(Icons.email_outlined), label: '消息'),
+        onDestinationSelected: (i) {
+          setState(() => _currentTab = i);
+          if (i == 2 || i == 3) _loadUnreadCount();
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.home), label: '首页'),
+          const NavigationDestination(icon: Icon(Icons.auto_awesome), label: 'AI'),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: _unreadCount > 0,
+              label: Text('$_unreadCount', style: const TextStyle(fontSize: 10, color: Colors.white)),
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            label: '通知',
+          ),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: _unreadMsgCount > 0,
+              label: Text('$_unreadMsgCount', style: const TextStyle(fontSize: 10, color: Colors.white)),
+              child: const Icon(Icons.email_outlined),
+            ),
+            label: '消息',
+          ),
         ],
       ),
       floatingActionButton: _currentTab == 0
@@ -115,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
           : posts.isEmpty
               ? const Center(child: Text('暂无内容，关注一些用户吧', style: TextStyle(color: Colors.grey)))
               : RefreshIndicator(
-                  onRefresh: () async { _loadData(); },
+                  onRefresh: _loadData,
                   child: ListView.separated(
                     itemCount: posts.length,
                     separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.5, color: Color(0xFFE1E8ED)),

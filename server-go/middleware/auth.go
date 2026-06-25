@@ -31,11 +31,11 @@ func AuthRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		auth := c.Get("Authorization")
 		if auth == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "No token provided"})
+			return c.Status(401).JSON(fiber.Map{"error": "未提供令牌"})
 		}
 		tokenStr := strings.TrimPrefix(auth, "Bearer ")
 		if tokenStr == auth {
-			return c.Status(401).JSON(fiber.Map{"error": "No token provided"})
+			return c.Status(401).JSON(fiber.Map{"error": "未提供令牌"})
 		}
 
 		claims := &Claims{}
@@ -43,7 +43,7 @@ func AuthRequired() fiber.Handler {
 			return []byte(config.C.JWTSecret), nil
 		})
 		if err != nil || !token.Valid {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid token"})
+			return c.Status(401).JSON(fiber.Map{"error": "令牌无效"})
 		}
 
 		c.Locals("userId", claims.UserID)

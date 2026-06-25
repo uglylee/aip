@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/socket_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String userId;
@@ -11,13 +13,33 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   List<dynamic> messages = [];
   final msgCtrl = TextEditingController();
+  final scrollCtrl = ScrollController();
   String myId = '';
+  StreamSubscription? _messageSub;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     msgCtrl.addListener(() => setState(() {}));
     _load();
+    _listenMessages();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _messageSub?.cancel();
+    _pollTimer?.cancel();
+    msgCtrl.dispose();
+    scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _listenMessages() {
+    _messageSub = SocketService.on('message').listen((_) {
+      if (mounted) _load();
+    });
   }
 
   void _load() async {
@@ -25,8 +47,23 @@ class _ChatScreenState extends State<ChatScreen> {
       final me = await ApiService.getMe();
       myId = me?['id'] ?? '';
       final result = await ApiService.getMessages(widget.userId);
-      if (mounted) setState(() => messages = result);
+      if (mounted) {
+        setState(() => messages = result);
+        _scrollToBottom();
+      }
     } catch (_) {}
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollCtrl.hasClients) {
+        scrollCtrl.animateTo(
+          scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
@@ -37,6 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: ListView.builder(
+              controller: scrollCtrl,
               padding: const EdgeInsets.all(8),
               itemCount: messages.length,
               itemBuilder: (ctx, i) {

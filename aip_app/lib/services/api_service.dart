@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.108:8005';
+  static String baseUrl = 'http://192.168.0.108:8005';
   static String? _token;
 
   static void setToken(String? t) => _token = t;
@@ -33,36 +33,52 @@ class ApiService {
     await prefs.remove('auth_token');
   }
 
+  static Future<void> loadBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('api_base_url');
+    if (saved != null && saved.isNotEmpty) baseUrl = saved;
+  }
+
+  static Future<void> saveBaseUrl(String url) async {
+    baseUrl = url;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('api_base_url', url);
+  }
+
   static Future<JSONObject?> _get(String path) async {
     try {
       final resp = await http.get(Uri.parse('$baseUrl$path'), headers: _headers);
       if (resp.statusCode == 200) return jsonDecode(resp.body);
-      return null;
-    } catch (_) { return null; }
+      final body = jsonDecode(resp.body);
+      return {'error': body['error'] ?? '请求失败'};
+    } catch (_) { return {'error': '网络错误'}; }
   }
 
   static Future<JSONObject?> _post(String path, Map<String, dynamic> data) async {
     try {
       final resp = await http.post(Uri.parse('$baseUrl$path'), headers: _headers, body: jsonEncode(data));
       if (resp.statusCode == 200) return jsonDecode(resp.body);
-      return null;
-    } catch (_) { return null; }
+      final body = jsonDecode(resp.body);
+      return {'error': body['error'] ?? '请求失败'};
+    } catch (_) { return {'error': '网络错误'}; }
   }
 
   static Future<JSONObject?> _delete(String path) async {
     try {
       final resp = await http.delete(Uri.parse('$baseUrl$path'), headers: _headers);
       if (resp.statusCode == 200) return jsonDecode(resp.body);
-      return null;
-    } catch (_) { return null; }
+      final body = jsonDecode(resp.body);
+      return {'error': body['error'] ?? '请求失败'};
+    } catch (_) { return {'error': '网络错误'}; }
   }
 
   static Future<JSONObject?> _put(String path, Map<String, dynamic> data) async {
     try {
       final resp = await http.put(Uri.parse('$baseUrl$path'), headers: _headers, body: jsonEncode(data));
       if (resp.statusCode == 200) return jsonDecode(resp.body);
-      return null;
-    } catch (_) { return null; }
+      final body = jsonDecode(resp.body);
+      return {'error': body['error'] ?? '请求失败'};
+    } catch (_) { return {'error': '网络错误'}; }
   }
 
   // Auth
@@ -92,6 +108,13 @@ class ApiService {
 
   // Users
   static Future<JSONObject?> getUser(String userId) => _get('/api/users/$userId');
+  static Future<JSONObject?> updateUser(String userId, {String? username, String? bio, String? avatar}) {
+    final data = <String, dynamic>{};
+    if (username != null) data['username'] = username;
+    if (bio != null) data['bio'] = bio;
+    if (avatar != null) data['avatar'] = avatar;
+    return _put('/api/users/$userId', data);
+  }
   static Future<JSONObject?> followUser(String userId) => _post('/api/users/$userId/follow', {});
   static Future<JSONObject?> unfollowUser(String userId) => _delete('/api/users/$userId/follow');
   static Future<List<JSONObject>> getUserPosts(String userId) async {
@@ -103,6 +126,11 @@ class ApiService {
   static Future<List<JSONObject>> getConversations() async {
     final r = await _get('/api/messages/conversations');
     return (r?['conversations'] as List?)?.cast<JSONObject>() ?? [];
+  }
+
+  static Future<int> getUnreadMessageCount() async {
+    final r = await _get('/api/messages/unread');
+    return r?['count'] ?? 0;
   }
 
   static Future<List<JSONObject>> getMessages(String userId) async {
@@ -144,6 +172,17 @@ class ApiService {
   static Future<JSONObject?> acceptFriendRequest(String requestId) => _put('/api/friends/$requestId/accept', {});
   static Future<JSONObject?> declineFriendRequest(String requestId) => _put('/api/friends/$requestId/decline', {});
   static Future<JSONObject?> removeFriend(String userId) => _delete('/api/friends/$userId');
+
+  // Bookmarks
+  static Future<JSONObject?> bookmarkPost(String postId) => _post('/api/posts/$postId/bookmark', {});
+  static Future<JSONObject?> unbookmarkPost(String postId) => _delete('/api/posts/$postId/bookmark');
+  static Future<List<JSONObject>> getBookmarks({int page = 1}) async {
+    final r = await _get('/api/posts/bookmarks?page=$page');
+    return (r?['posts'] as List?)?.cast<JSONObject>() ?? [];
+  }
+
+  // Password
+  static Future<JSONObject?> changePassword(String oldPassword, String newPassword) => _put('/api/auth/password', {'oldPassword': oldPassword, 'newPassword': newPassword});
 
   // Search
   static Future<JSONObject?> search(String query) => _get('/api/search?q=${Uri.encodeComponent(query)}');
@@ -236,6 +275,11 @@ class ApiService {
   static Future<List<JSONObject>> getNotifications() async {
     final r = await _get('/api/notifications');
     return (r?['notifications'] as List?)?.cast<JSONObject>() ?? [];
+  }
+
+  // Update check
+  static Future<JSONObject?> checkUpdate(String version) async {
+    return _get('/api/version?version=$version');
   }
 
   static Future<void> markAllRead() async {

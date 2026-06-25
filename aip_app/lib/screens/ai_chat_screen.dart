@@ -7,7 +7,6 @@ import '../services/api_service.dart';
 import '../models/provider_model.dart';
 import '../models/role.dart';
 import 'settings_screen.dart';
-import 'providers_screen.dart';
 import 'roles_screen.dart';
 import 'dart:convert';
 

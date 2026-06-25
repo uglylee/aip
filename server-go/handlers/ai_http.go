@@ -40,7 +40,7 @@ func AIChatHTTP(w http.ResponseWriter, r *http.Request) {
 	userID, ok := authHTTP(r)
 	_ = userID
 	if !ok {
-		http.Error(w, `{"error":"No token provided"}`, 401)
+		http.Error(w, `{"error":"未提供有效令牌"}`, 401)
 		return
 	}
 
@@ -56,7 +56,7 @@ func AIChatHTTP(w http.ResponseWriter, r *http.Request) {
 		EnableThinking any    `json:"enableThinking"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, `{"error":"Invalid request"}`, 400)
+		http.Error(w, `{"error":"无效请求"}`, 400)
 		return
 	}
 
@@ -155,7 +155,7 @@ func AIChatHTTP(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming not supported", 500)
+		http.Error(w, `{"error":"不支持流式传输"}`, 500)
 		return
 	}
 

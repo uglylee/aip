@@ -35,7 +35,7 @@ func InitDB() {
 	}
 	log.Println("MongoDB connected")
 
-	db := client.Database("xclone")
+	db := client.Database(config.C.DBName)
 	Users = db.Collection("users")
 	Posts = db.Collection("posts")
 	Messages = db.Collection("messages")

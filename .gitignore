@@ -4,12 +4,14 @@ aip_app/.flutter-plugins
 aip_app/.flutter-plugins-dependencies
 aip_app/build/
 aip_app/.packages
-aip_app/pubspec.lock
 
 # Go
-server-go/server-go.exe
+server-go/aip-server.exe
+server-go/aip-server.exe~
 server-go/server.log
 server-go/error.log
+server-go/err.log
+server-go/server_err.log
 server-go/uploads/
 
 # IDE
@@ -29,3 +31,5 @@ device_log.txt
 key.txt
 key.config.txt
 .env
+test_*.ps1
+test_*.py

@@ -3,6 +3,8 @@ import '../services/api_service.dart';
 import '../models/post.dart';
 import '../models/user.dart';
 import '../widgets/post_card.dart';
+import '../widgets/user_avatar.dart';
+import 'profile_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -53,9 +55,13 @@ class _SearchScreenState extends State<SearchScreen> {
                     if (users.isNotEmpty) ...[
                       const Padding(padding: EdgeInsets.all(16), child: Text('用户', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
                       ...users.map((u) => ListTile(
-                        leading: CircleAvatar(child: Text(u.username[0].toUpperCase())),
+                        leading: GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: u.id))),
+                          child: UserAvatar(avatarUrl: u.avatar, username: u.username),
+                        ),
                         title: Text(u.username),
                         subtitle: Text('@${u.handle}'),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: u.id))),
                       )).toList(),
                     ],
                     if (posts.isNotEmpty) ...[

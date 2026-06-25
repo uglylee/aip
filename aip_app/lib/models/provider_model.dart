@@ -14,7 +14,7 @@ class AIProvider {
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'apiBase': apiBase, 'apiKey': apiKey, 'model': model, 'deletable': deletable};
 
   static List<AIProvider> defaults() => [
-    AIProvider(id: 'agnes', name: 'Agnes AI', apiBase: 'https://apihub.agnes-ai.com/v1/chat/completions', apiKey: 'sk-kdRIMbZzFhPEeVWsYNEleEG3G4EnsPu0oqRAuygUa83yFgfU', model: 'agnes-2.0-flash', deletable: false),
+    AIProvider(id: 'agnes', name: 'Agnes AI', apiBase: 'https://apihub.agnes-ai.com/v1/chat/completions', apiKey: '', model: 'agnes-2.0-flash', deletable: false),
   ];
 
   static Future<List<AIProvider>> loadAll() async {

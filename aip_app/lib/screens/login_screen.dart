@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/foreground_service.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,17 +19,43 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void doAuth() async {
     setState(() { loading = true; error = ''; });
+
+    if (emailCtrl.text.trim().isEmpty) {
+      setState(() { error = '请输入邮箱'; loading = false; });
+      return;
+    }
+    if (!emailCtrl.text.contains('@')) {
+      setState(() { error = '请输入有效的邮箱地址'; loading = false; });
+      return;
+    }
+    if (passwordCtrl.text.length < 6) {
+      setState(() { error = '密码至少需要6位'; loading = false; });
+      return;
+    }
+    if (!isLogin) {
+      if (usernameCtrl.text.trim().isEmpty) {
+        setState(() { error = '请输入用户名'; loading = false; });
+        return;
+      }
+      if (handleCtrl.text.trim().isEmpty) {
+        setState(() { error = '请输入@用户名'; loading = false; });
+        return;
+      }
+    }
+
     try {
       final result = isLogin
           ? await ApiService.login(emailCtrl.text, passwordCtrl.text)
           : await ApiService.register(usernameCtrl.text, handleCtrl.text, emailCtrl.text, passwordCtrl.text);
       if (result != null && result.containsKey('token')) {
         await ApiService.saveToken(result['token']);
+        ForegroundServiceHelper.start();
         if (mounted) {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
         }
       } else {
-        setState(() { error = '认证失败，请检查输入'; loading = false; });
+        final errorMsg = result?['error'] ?? '认证失败，请检查输入';
+        setState(() { error = errorMsg; loading = false; });
       }
     } catch (e) {
       setState(() { error = '网络错误: $e'; loading = false; });

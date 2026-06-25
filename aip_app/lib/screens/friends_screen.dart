@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/user_avatar.dart';
 import 'profile_screen.dart';
 import 'chat_screen.dart';
 
@@ -77,7 +78,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
       itemBuilder: (ctx, i) {
         final u = friends[i];
         return ListTile(
-          leading: CircleAvatar(child: Text((u['username'] ?? '?')[0].toUpperCase())),
+          leading: GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: u['_id'] ?? u['id']))),
+            child: UserAvatar(avatarUrl: u['avatar'], username: u['username'] ?? '?'),
+          ),
           title: Text(u['username'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text('@${u['handle'] ?? ''}'),
           trailing: IconButton(
@@ -105,7 +109,13 @@ class _FriendsScreenState extends State<FriendsScreen> {
         final r = pendingRequests[i];
         final from = r['from'];
         return ListTile(
-          leading: CircleAvatar(child: Text((from?['username'] ?? '?')[0].toUpperCase())),
+          leading: GestureDetector(
+            onTap: () {
+              final userId = from?['id'] ?? from?['_id'];
+              if (userId != null) Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userId: userId)));
+            },
+            child: UserAvatar(avatarUrl: from?['avatar'], username: from?['username'] ?? '?'),
+          ),
           title: Text(from?['username'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: Text('@${from?['handle'] ?? ''}'),
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [

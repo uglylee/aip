@@ -23,7 +23,11 @@ func CreateGroup(c *fiber.Ctx) error {
 		MemberIDs []string `json:"memberIds"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求"})
+	}
+
+	if body.Name == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "群组名称不能为空"})
 	}
 
 	viewerID := middleware.GetUserID(c)
@@ -89,12 +93,12 @@ func GetGroup(c *fiber.Ctx) error {
 
 	groupID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid group ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效群组ID"})
 	}
 
 	var group models.Group
 	if err := services.Groups.FindOne(ctx, bson.M{"_id": groupID}).Decode(&group); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Group not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "群组不存在"})
 	}
 
 	return c.JSON(toGroupResponse(ctx, &group))
@@ -106,19 +110,31 @@ func AddMembers(c *fiber.Ctx) error {
 
 	groupID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid group ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效群组ID"})
 	}
 
 	var body struct {
 		UserIDs []string `json:"userIds"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求"})
 	}
 
+	viewerID := middleware.GetUserID(c)
 	var group models.Group
 	if err := services.Groups.FindOne(ctx, bson.M{"_id": groupID}).Decode(&group); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Group not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "群组不存在"})
+	}
+
+	isMember := false
+	for _, m := range group.Members {
+		if m == viewerID {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return c.Status(403).JSON(fiber.Map{"error": "无权操作"})
 	}
 
 	for _, uid := range body.UserIDs {
@@ -150,17 +166,22 @@ func RemoveMember(c *fiber.Ctx) error {
 
 	groupID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid group ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效群组ID"})
 	}
 
 	memberID, err := bson.ObjectIDFromHex(c.Params("memberId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid member ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效成员ID"})
 	}
 
+	viewerID := middleware.GetUserID(c)
 	var group models.Group
 	if err := services.Groups.FindOne(ctx, bson.M{"_id": groupID}).Decode(&group); err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "Group not found"})
+		return c.Status(404).JSON(fiber.Map{"error": "群组不存在"})
+	}
+
+	if group.Admin != viewerID && memberID != viewerID {
+		return c.Status(403).JSON(fiber.Map{"error": "无权操作"})
 	}
 
 	newMembers := []bson.ObjectID{}
@@ -180,7 +201,7 @@ func GetGroupMessages(c *fiber.Ctx) error {
 
 	groupID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid group ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效群组ID"})
 	}
 
 	opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}})
@@ -201,7 +222,7 @@ func SendGroupMessage(c *fiber.Ctx) error {
 
 	groupID, err := bson.ObjectIDFromHex(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid group ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效群组ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -209,7 +230,11 @@ func SendGroupMessage(c *fiber.Ctx) error {
 		Content string `json:"content"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求"})
+	}
+
+	if body.Content == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "消息内容不能为空"})
 	}
 
 	message := models.Message{

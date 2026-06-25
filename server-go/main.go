@@ -13,7 +13,6 @@ import (
 
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/websocket/v2"
 )
 
 func main() {
@@ -29,6 +28,12 @@ func main() {
 	})
 
 	app.Use(func(c *fiber.Ctx) error {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic recovered: %v", r)
+				c.Status(500).JSON(fiber.Map{"error": "服务器内部错误"})
+			}
+		}()
 		c.Set("Access-Control-Allow-Origin", "*")
 		c.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		c.Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
@@ -38,7 +43,14 @@ func main() {
 		return c.Next()
 	})
 
-	app.Static("/uploads", "./uploads")
+	app.Static("/uploads", "./uploads", fiber.Static{
+		ModifyResponse: func(c *fiber.Ctx) error {
+			c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Set("Pragma", "no-cache")
+			c.Set("Expires", "0")
+			return nil
+		},
+	})
 
 	app.Get("/api/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok", "timestamp": nil})
@@ -48,6 +60,7 @@ func main() {
 	auth.Post("/register", handlers.Register)
 	auth.Post("/login", handlers.Login)
 	auth.Get("/me", middleware.AuthRequired(), handlers.GetMe)
+	auth.Put("/password", middleware.AuthRequired(), handlers.ChangePassword)
 
 	users := app.Group("/api/users", middleware.AuthRequired())
 	users.Get("/:id", handlers.GetUser)
@@ -68,9 +81,13 @@ func main() {
 	posts.Delete("/:id/like", handlers.UnlikePost)
 	posts.Post("/:id/retweet", handlers.RetweetPost)
 	posts.Delete("/:id/retweet", handlers.UndoRetweet)
+	posts.Post("/:id/bookmark", handlers.BookmarkPost)
+	posts.Delete("/:id/bookmark", handlers.UnbookmarkPost)
+	posts.Get("/bookmarks", handlers.GetBookmarks)
 
 	messages := app.Group("/api/messages", middleware.AuthRequired())
 	messages.Get("/conversations", handlers.GetConversations)
+	messages.Get("/unread", handlers.GetUnreadMessageCount)
 	messages.Get("/:userId", handlers.GetMessages)
 	messages.Post("/:userId", handlers.SendMessage)
 
@@ -105,15 +122,9 @@ func main() {
 
 	app.Post("/api/upload", middleware.AuthRequired(), handlers.Upload)
 
+	app.Get("/api/version", handlers.CheckUpdate)
+	app.Get("/app", handlers.DownloadPage)
 	app.Get("/api/ai/models", middleware.AuthRequired(), handlers.GetModels)
-
-	app.Use("/ws", func(c *fiber.Ctx) error {
-		if websocket.IsWebSocketUpgrade(c) {
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
-	app.Get("/ws", websocket.New(ws.HandleConnection))
 
 	fiberHandler := adaptor.FiberApp(app)
 
@@ -127,10 +138,12 @@ func main() {
 		handlers.AIChatHTTP(w, r)
 	})
 
+	httpMux.HandleFunc("/ws", ws.HandleConnectionHTTP)
+
 	httpMux.Handle("/", fiberHandler)
 
 	port := config.C.Port
-	addr := fmt.Sprintf("0.0.0.0:%d", port)
+	addr := fmt.Sprintf(":%d", port)
 	log.Printf("Server running on port %d", port)
 	log.Fatal(http.ListenAndServe(addr, httpMux))
 }

@@ -112,7 +112,7 @@ func GetMessages(c *fiber.Ctx) error {
 
 	otherID, err := bson.ObjectIDFromHex(c.Params("userId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效用户ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -145,7 +145,7 @@ func SendMessage(c *fiber.Ctx) error {
 
 	otherID, err := bson.ObjectIDFromHex(c.Params("userId"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid user ID"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效用户ID"})
 	}
 	viewerID := middleware.GetUserID(c)
 
@@ -153,7 +153,11 @@ func SendMessage(c *fiber.Ctx) error {
 		Content string `json:"content"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		return c.Status(400).JSON(fiber.Map{"error": "无效请求"})
+	}
+
+	if body.Content == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "消息内容不能为空"})
 	}
 
 	message := models.Message{
@@ -170,13 +174,34 @@ func SendMessage(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	var senderUser models.User
+	services.Users.FindOne(ctx, bson.M{"_id": viewerID}).Decode(&senderUser)
+
 	ws.H.EmitToUser(otherID.Hex(), "message", fiber.Map{
-		"_id":       message.ID,
-		"sender":    viewerID,
-		"receiver":  otherID,
-		"content":   message.Content,
-		"createdAt": message.CreatedAt,
+		"_id":        message.ID,
+		"sender":     viewerID,
+		"senderName": senderUser.Username,
+		"receiver":   otherID,
+		"content":    message.Content,
+		"createdAt":  message.CreatedAt,
 	})
 
 	return c.JSON(message)
+}
+
+func GetUnreadMessageCount(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	viewerID := middleware.GetUserID(c)
+	count, err := services.Messages.CountDocuments(ctx, bson.M{
+		"receiver": viewerID,
+		"read":     false,
+		"groupId":  nil,
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"count": count})
 }
