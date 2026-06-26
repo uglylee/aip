@@ -4,26 +4,44 @@
 
 ## 应用截图
 
-### 首页 Feed
-![首页 Feed](docs/images/cff9c6c2335e9d529e665dd7aadb1ba3.jpg)
-
-### AI 助手
-![AI 助手](docs/images/b897e0ccbdad0f731211df4106afa37a.jpg)
-
-### AI 设置
-![AI 设置](docs/images/eec61cf483766e5450886bcbd499ac32.jpg)
-
-### 角色管理
-![角色管理](docs/images/6c4ebf6c8cafef7faf766d42c6f59eec.jpg)
-
-### 消息列表
-![消息列表](docs/images/c0264b877fab2616c6dcf714b1f725b5.jpg)
-
-### 通知列表
-![通知列表](docs/images/ec3c1b8512714c5b5d29aebc490c5047.jpg)
-
-### 个人主页
-![个人主页](docs/images/8e5ba5af8e748e7f610d8e4f9bae5353.jpg)
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/cff9c6c2335e9d529e665dd7aadb1ba3.jpg" width="100%"/><br>
+      <sub>首页 Feed</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/b897e0ccbdad0f731211df4106afa37a.jpg" width="100%"/><br>
+      <sub>AI 助手</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/eec61cf483766e5450886bcbd499ac32.jpg" width="100%"/><br>
+      <sub>AI 设置</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/6c4ebf6c8cafef7faf766d42c6f59eec.jpg" width="100%"/><br>
+      <sub>角色管理</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/c0264b877fab2616c6dcf714b1f725b5.jpg" width="100%"/><br>
+      <sub>消息列表</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/ec3c1b8512714c5b5d29aebc490c5047.jpg" width="100%"/><br>
+      <sub>通知列表</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/8e5ba5af8e748e7f610d8e4f9bae5353.jpg" width="100%"/><br>
+      <sub>个人主页</sub>
+    </td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
 
 ## 功能概览
 
