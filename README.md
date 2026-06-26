@@ -2,6 +2,8 @@
 
 一个功能完整的 AI 聊天 + 社交应用，Flutter 跨平台客户端 + Go 后端。支持多 AI 供应商流式对话、图片视频发布、私信群聊、好友系统。
 
+> 💡 **免费 AI 接口**: 使用内置的 [mimo-auto](https://github.com/uglylee/mimo-auto) 免费接口，支持 Docker 一键部署，详见 [mimo-auto README](https://github.com/uglylee/mimo-auto#readme)。
+
 ## 应用截图
 
 <table>
