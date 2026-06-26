@@ -24,14 +24,11 @@ var mimeMap = map[string]string{
 }
 
 func getDefaultAPIKey() string {
-	paths := []string{
-		"key.config.txt",
-		".env",
+	if config.C.DefaultAIKey != "" {
+		return config.C.DefaultAIKey
 	}
-	for _, p := range paths {
-		if data, err := os.ReadFile(p); err == nil {
-			return strings.TrimSpace(string(data))
-		}
+	if data, err := os.ReadFile("key.config.txt"); err == nil {
+		return strings.TrimSpace(string(data))
 	}
 	return ""
 }
@@ -66,6 +63,16 @@ func imageToBase64(imgPath string) string {
 		mime = "image/jpeg"
 	}
 	return fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data))
+}
+
+func GetDefaultProvider(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"id":      strings.ToLower(config.C.DefaultAIName),
+		"name":    config.C.DefaultAIName,
+		"apiBase": config.C.DefaultAIBase,
+		"apiKey":  config.C.DefaultAIKey,
+		"model":   config.C.DefaultAIModel,
+	})
 }
 
 func GetModels(c *fiber.Ctx) error {

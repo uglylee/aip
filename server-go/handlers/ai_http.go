@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -132,13 +133,6 @@ func AIChatHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqJSON, _ := json.Marshal(reqBody)
-	req, err := http.NewRequest("POST", aiURL, bytes.NewReader(reqJSON))
-	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, 500)
-		return
-	}
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{
 		Timeout: 120 * time.Second,
@@ -146,22 +140,41 @@ func AIChatHTTP(w http.ResponseWriter, r *http.Request) {
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, 500)
-		return
-	}
-	defer resp.Body.Close()
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("Transfer-Encoding", "chunked")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, `{"error":"不支持流式传输"}`, 500)
+		return
+	}
+
+	sendSSE := func(content string) {
+		fmt.Fprintf(w, "data: {\"id\":\"\",\"choices\":[{\"delta\":{\"content\":%q,\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"model\":\"\",\"object\":\"chat.completion.chunk\"}\n\n", content)
+		fmt.Fprintln(w, "data: [DONE]")
+		flusher.Flush()
+	}
+
+	req, _ := http.NewRequest("POST", aiURL, bytes.NewReader(reqJSON))
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		sendSSE("请求AI服务失败: " + err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 429 {
+		sendSSE("当前使用人数过多，请稍后重试")
+		return
+	}
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 500))
+		sendSSE(fmt.Sprintf("AI服务返回错误(%d): %s", resp.StatusCode, string(body)))
 		return
 	}
 

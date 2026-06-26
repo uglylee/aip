@@ -1,8 +1,9 @@
 $flutterSdk = "C:\flutter\bin\flutter.bat"
 $adb = "C:\Users\lee\android-sdk\platform-tools\adb.exe"
 $androidHome = "C:\Users\lee\android-sdk"
-$appDir = "C:\Users\lee\Desktop\test\aip\aip_app"
-$serverDir = "C:\Users\lee\Desktop\test\aip\server-go"
+$aipDir = "C:\Users\lee\Desktop\lee\aip"
+$appDir = "C:\Users\lee\Desktop\lee\aip\aip_app"
+$serverDir = "C:\Users\lee\Desktop\lee\aip\server-go"
 $apkPath = "$appDir\build\app\outputs\flutter-apk\app-debug.apk"
 $packageName = "com.aip.aip_app"
 $pubspecPath = "$appDir\pubspec.yaml"
@@ -58,7 +59,7 @@ Copy-Item $apkPath "$serverDir\uploads\aip-debug.apk" -Force
 Write-Host "  OK" -ForegroundColor Green
 
 Write-Host "[4/6] Install..." -ForegroundColor Yellow
-Set-Location "C:\Users\lee\Desktop\test\aip"
+Set-Location "$aipDir"
 $hasDevice = & $adb devices 2>&1 | Select-String "device$"
 if ($hasDevice) {
     & $adb shell am force-stop $packageName 2>&1 | Out-Null

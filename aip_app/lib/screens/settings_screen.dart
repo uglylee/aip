@@ -28,13 +28,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     providers = await AIProvider.loadAll();
     currentProviderId = prefs.getString('current_provider_id') ?? 'agnes';
-    final cp = providers.firstWhere((p) => p.id == currentProviderId, orElse: () => providers.first);
-    selectedModel = prefs.getString('model_$currentProviderId') ?? cp.model;
+    final cp = providers.isNotEmpty ? providers.firstWhere((p) => p.id == currentProviderId, orElse: () => providers.first) : null;
+    selectedModel = prefs.getString('model_$currentProviderId') ?? (cp?.model ?? '');
     enableThinking = prefs.getBool('enable_thinking') ?? true;
     setState(() {});
   }
 
-  AIProvider get currentProvider => providers.firstWhere((p) => p.id == currentProviderId, orElse: () => providers.first);
+  AIProvider? get currentProvider => providers.isNotEmpty ? providers.firstWhere((p) => p.id == currentProviderId, orElse: () => providers.first) : null;
 
   void _save() async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,14 +46,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _fetchModels() async {
     setState(() => loadingModels = true);
-    final result = await ApiService.fetchModels(currentProvider.apiBase, currentProvider.apiKey);
+    final result = await ApiService.fetchModels(currentProvider?.apiBase ?? '', currentProvider?.apiKey ?? '');
     setState(() { models = result; loadingModels = false; });
   }
 
   @override
   Widget build(BuildContext context) {
-    final maskedKey = currentProvider.apiKey.isNotEmpty
-        ? '${currentProvider.apiKey.substring(0, [8, currentProvider.apiKey.length].reduce((a,b)=>a<b?a:b))}****'
+    if (providers.isEmpty) {
+      return Scaffold(appBar: AppBar(title: const Text('AI 设置')), body: const Center(child: CircularProgressIndicator()));
+    }
+    final cp = currentProvider!;
+    final maskedKey = cp.apiKey.isNotEmpty
+        ? '${cp.apiKey.substring(0, [8, cp.apiKey.length].reduce((a,b)=>a<b?a:b))}****'
         : '未设置';
 
     return Scaffold(
@@ -94,9 +98,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           }),
           const SizedBox(height: 16),
           // Current provider details
-          Text('当前: ${currentProvider.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text('当前: ${cp.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 4),
-          Text(currentProvider.apiBase, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(cp.apiBase, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           Text('Key: $maskedKey', style: const TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 16),
           // Model selection

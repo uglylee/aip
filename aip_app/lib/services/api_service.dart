@@ -223,6 +223,7 @@ class ApiService {
     final response = await client.send(request);
     final stream = response.stream.transform(utf8.decoder).transform(const LineSplitter());
 
+    bool gotContent = false;
     await for (final line in stream) {
       if (line.startsWith('data: ')) {
         final data = line.substring(6).trim();
@@ -232,11 +233,12 @@ class ApiService {
           final delta = json['choices']?[0]?['delta'];
           final content = delta?['content']?.toString() ?? '';
           final reasoning = delta?['reasoning_content']?.toString() ?? '';
-          if (content.isNotEmpty && content != 'null') yield content;
-          else if (reasoning.isNotEmpty && reasoning != 'null') yield '§REASONING§$reasoning';
+          if (content.isNotEmpty && content != 'null') { gotContent = true; yield content; }
+          else if (reasoning.isNotEmpty && reasoning != 'null') { gotContent = true; yield '§REASONING§$reasoning'; }
         } catch (_) {}
       }
     }
+    if (!gotContent) yield '回复为空，请稍后重试';
     client.close();
   }
 

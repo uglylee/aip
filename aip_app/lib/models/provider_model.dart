@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
 
 class AIProvider {
   final String id, name, apiBase, apiKey, model;
@@ -13,17 +15,24 @@ class AIProvider {
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name, 'apiBase': apiBase, 'apiKey': apiKey, 'model': model, 'deletable': deletable};
 
-  static List<AIProvider> defaults() => [
-    AIProvider(id: 'agnes', name: 'Agnes AI', apiBase: 'https://apihub.agnes-ai.com/v1/chat/completions', apiKey: '', model: 'agnes-2.0-flash', deletable: false),
-  ];
+  static Future<List<AIProvider>> defaults() async {
+    try {
+      final resp = await http.get(Uri.parse('${ApiService.baseUrl}/api/default-provider'));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        return [AIProvider.fromJson({...data, 'deletable': false})];
+      }
+    } catch (_) {}
+    return [AIProvider(id: 'agnes', name: 'Agnes AI', apiBase: 'https://apihub.agnes-ai.com/v1/chat/completions', apiKey: '', model: 'agnes-2.0-flash', deletable: false)];
+  }
 
   static Future<List<AIProvider>> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     final str = prefs.getString('providers');
+    final defaults_ = await defaults();
     if (str != null) {
       try {
         final list = (jsonDecode(str) as List).map((e) => AIProvider.fromJson(e)).toList();
-        final defaults_ = defaults();
         final merged = <AIProvider>[...defaults_];
         for (final l in list) {
           if (!defaults_.any((d) => d.id == l.id)) merged.add(l);
@@ -35,7 +44,7 @@ class AIProvider {
         return merged;
       } catch (_) {}
     }
-    return defaults();
+    return defaults_;
   }
 
   static Future<void> saveAll(List<AIProvider> providers) async {

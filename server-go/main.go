@@ -123,6 +123,7 @@ func main() {
 	app.Post("/api/upload", middleware.AuthRequired(), handlers.Upload)
 
 	app.Get("/api/version", handlers.CheckUpdate)
+	app.Get("/api/default-provider", handlers.GetDefaultProvider)
 	app.Get("/app", handlers.DownloadPage)
 	app.Get("/api/ai/models", middleware.AuthRequired(), handlers.GetModels)
 

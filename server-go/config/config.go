@@ -17,8 +17,10 @@ type Config struct {
 	RedisDB        int
 	JWTSecret      string
 	JWTExpiryHours int
-	DefaultAIBase  string
-	DefaultAIModel string
+	DefaultAIBase   string
+	DefaultAIModel  string
+	DefaultAIKey    string
+	DefaultAIName   string
 	UploadDir      string
 	MaxUploadSize  int64
 }
@@ -43,6 +45,8 @@ func Load() {
 		JWTExpiryHours: 30 * 24,
 		DefaultAIBase:  getEnv("DEFAULT_AI_BASE", "https://apihub.agnes-ai.com/v1/chat/completions"),
 		DefaultAIModel: getEnv("DEFAULT_AI_MODEL", "agnes-2.0-flash"),
+		DefaultAIKey:   getEnv("DEFAULT_AI_KEY", ""),
+		DefaultAIName:  getEnv("DEFAULT_AI_NAME", "agnes"),
 		UploadDir:      getEnv("UPLOAD_DIR", "./uploads"),
 		MaxUploadSize:  maxUpload,
 	}

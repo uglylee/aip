@@ -188,8 +188,8 @@ void main() {
       expect(p2.id, 'x');
     });
 
-    test('defaults returns agnes', () {
-      final defs = AIProvider.defaults();
+    test('defaults returns agnes', () async {
+      final defs = await AIProvider.defaults();
       expect(defs.length, 1);
       expect(defs[0].id, 'agnes');
       expect(defs[0].deletable, false);
