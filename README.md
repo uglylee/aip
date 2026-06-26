@@ -2,6 +2,29 @@
 
 一个功能完整的 AI 聊天 + 社交应用，Flutter 跨平台客户端 + Go 后端。支持多 AI 供应商流式对话、图片视频发布、私信群聊、好友系统。
 
+## 应用截图
+
+### 首页 Feed
+![首页 Feed](docs/images/cff9c6c2335e9d529e665dd7aadb1ba3.jpg)
+
+### AI 助手
+![AI 助手](docs/images/b897e0ccbdad0f731211df4106afa37a.jpg)
+
+### AI 设置
+![AI 设置](docs/images/eec61cf483766e5450886bcbd499ac32.jpg)
+
+### 角色管理
+![角色管理](docs/images/6c4ebf6c8cafef7faf766d42c6f59eec.jpg)
+
+### 消息列表
+![消息列表](docs/images/c0264b877fab2616c6dcf714b1f725b5.jpg)
+
+### 通知列表
+![通知列表](docs/images/ec3c1b8512714c5b5d29aebc490c5047.jpg)
+
+### 个人主页
+![个人主页](docs/images/8e5ba5af8e748e7f610d8e4f9bae5353.jpg)
+
 ## 功能概览
 
 ### AI 助手
